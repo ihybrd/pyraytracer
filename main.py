@@ -20,14 +20,29 @@ class Ray(object):
     def direction(self):
         return self.B
         
-    def point_at_parameter(t):
-        return A + t*B
+    def point_at_parameter(self, t):
+        return self.A + t*self.B
 
 def unit_vector(v):
     length = pow(v[0]*v[0]+v[1]*v[1]+v[2]*v[2], 0.5)
     return v/length
-    
+
+def hit_sphere(center, radius, r):
+    oc = r.origin() - center
+    a = np.dot(r.direction(), r.direction())
+    b = 2.0 * np.dot(oc, r.direction())
+    c = np.dot(oc, oc) - radius*radius
+    discriminant = b*b - 4*a*c
+    if discriminant < 0:
+        return -1.0
+    else:
+        return (-b- pow(discriminant, 0.5))/(2.0*a)
+            
 def color(r):
+    t = hit_sphere(np.array([0,0,-1]), .5, r)
+    if t > 0.:
+        N = unit_vector(r.point_at_parameter(t)- np.array([0,0,-1]))
+        return 0.5*np.array([N[0]+1, N[1]+1, N[2]+1])
     unit_direction = unit_vector(r.direction())
     t = 0.5*(unit_direction[1] + 1.0) # dir.y --> dir[1]
     return (1.0-t)*np.array([1.0,1.0,1.0])+t*np.array([0.5,0.7,1.0])

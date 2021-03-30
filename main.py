@@ -26,7 +26,7 @@ class HitRecord(object):
 
 class Hitable(object):
     def hit(self, r, t_min, t_max, rec):
-        return
+        pass
 
                 
 class Sphere(Hitable):
@@ -70,7 +70,7 @@ class HitableList(Hitable):
                 hit_anything = True
                 closest_so_far = temp_rec.t
                 rec = temp_rec
-        return hit_anything
+        return hit_anything, rec
     
 
 def unit_vector(v):
@@ -91,7 +91,8 @@ def hit_sphere(center, radius, r):
 MAXFLOAT = 100.0        
 def color(r, world):
     rec = HitRecord()
-    if world.hit(r, 0.0, MAXFLOAT, rec):
+    is_hit, rec = world.hit(r, 0.0, MAXFLOAT, rec)  # the rec would make sense only if the is_hit is True.
+    if is_hit:
         return 0.5*np.array([rec.normal[0]+1, rec.normal[1]+1, rec.normal[2]+1])
     else:
         unit_direction = unit_vector(r.direction())

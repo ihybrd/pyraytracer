@@ -102,23 +102,56 @@ def hit_sphere(center, radius, r):
         return (-b- pow(discriminant, 0.5))/(2.0*a)
 
 
-MAXFLOAT = 100.0        
-def color(r, world):
-    rec = HitRecord()
-    is_hit, rec = world.hit(r, 0.0, MAXFLOAT, rec)  # the rec would make sense only if the is_hit is True.
-    if is_hit:
-        return 0.5*np.array([rec.normal[0]+1, rec.normal[1]+1, rec.normal[2]+1])
-    else:
-        unit_direction = unit_vector(r.direction())
-        t = 0.5*(unit_direction[1]+1.0)
-        return (1.0-t)*np.array([1.0,1.0,1.0])+t*np.array([0.5,0.7,1.0])
+def random_in_unit_sphere():
+    while 1:
+        p = np.array(
+            [
+                random.randint(-100,100)/100.0,
+                random.randint(-100, 100)/100.0,
+                random.randint(-100, 100)/100.0
+            ]
+        )
+        length_squre = p[0]*p[0]+p[1]*p[1]+p[2]*p[2]
+        if length_squre >= 1:
+            continue
+        else:
+            return p
 
+
+MAXFLOAT = 100.0
+def ray_color(r, world, depth):
+    rec = HitRecord()
+    if depth <= 0:
+        return 0
+
+    is_hit, rec = world.hit(r, 0.001, MAXFLOAT, rec)  # the rec would make sense only if the is_hit is True.
+    if is_hit:
+        target = rec.p + rec.normal + random_in_unit_sphere()
+        return 0.5*ray_color(Ray(rec.p, target - rec.p), world, depth-1)
+
+    unit_direction = unit_vector(r.direction())
+    t = 0.5*(unit_direction[1]+1.0)
+    return (1.0-t)*np.array([1.0,1.0,1.0])+t*np.array([0.5,0.7,1.0])
+
+def white_color(pixel_color, samples_per_pixel):
+    r = pixel_color[0]
+    g = pixel_color[1]
+    b = pixel_color[2]
+
+    scale = 1.0/samples_per_pixel
+
+    r = pow(scale*r, 0.5)
+    g = pow(scale*g, 0.5)
+    b = pow(scale*b, 0.5)
+
+    return r, g, b
 
 def main():
     # the size of the canvas 
     nx = 200
     ny = 100
-    ns = 1 # higher and slower the performance, 1 for preview
+    samples_per_pixel = 10  # higher and slower the performance, 1 for preview
+    max_depth = 50
     
     hitablelist = [
         Sphere(np.array([0,0,-1]), 0.5),
@@ -133,24 +166,15 @@ def main():
     # draw pixels
     for w in xrange(img.width):
         for h in xrange(img.height):
-            
-            col = 0
-            
-            for s in xrange(ns):
-                u = float(w+random.randint(0,100)/100.0)/float(nx)
-                v = float(img.height - h+random.randint(0,100)/100.0)/float(ny)
-            
+            pixel_color = np.array([0,0,0])
+            for s in xrange(samples_per_pixel):
+                u = float(w+random.randint(0,100)/100.0)/(float(nx)-1)
+                v = float(img.height - h+random.randint(0,100)/100.0)/(float(ny)-1)
                 r = cam.get_ray(u, v)
-            
                 p = r.point_at_parameter(2.0)
-                col += color(r, world)
-
-            col/=float(ns)    
-            r = int(255.99*col[0])
-            g = int(255.99*col[1])
-            b = int(255.99*col[2])
-            
-            img.putpixel((w,h), (r,g,b))
+                pixel_color = pixel_color + ray_color(r, world, max_depth)
+            r, g, b = white_color(pixel_color, samples_per_pixel)
+            img.putpixel((w,h), (int(r*256),int(g*256),int(b*256)))
     
     # show image
     img.show()

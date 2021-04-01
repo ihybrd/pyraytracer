@@ -1,5 +1,6 @@
 from PIL import Image
 import numpy as np
+import random
 
     
 class Ray(object):
@@ -73,9 +74,21 @@ class HitableList(Hitable):
         return hit_anything, rec
     
 
+class Camera (object):
+    def __init__(self):
+        self.lower_left_corner = np.array([-2.0, -1.0, -1.0])
+        self.horizontal = np.array([4.0, 0.0, 0.0])
+        self.vertical = np.array([0.0, 2.0, 0.0])
+        self.origin = np.array([0.0, 0.0, 0.0])
+        
+    def get_ray(self, u, v):
+        return Ray(self.origin, self.lower_left_corner+u*self.horizontal+v*self.vertical)
+    
+  
 def unit_vector(v):
     length = pow(v[0]*v[0]+v[1]*v[1]+v[2]*v[2], 0.5)
     return v/length
+
 
 def hit_sphere(center, radius, r):
     oc = r.origin() - center
@@ -88,6 +101,7 @@ def hit_sphere(center, radius, r):
     else:
         return (-b- pow(discriminant, 0.5))/(2.0*a)
 
+
 MAXFLOAT = 100.0        
 def color(r, world):
     rec = HitRecord()
@@ -99,15 +113,12 @@ def color(r, world):
         t = 0.5*(unit_direction[1]+1.0)
         return (1.0-t)*np.array([1.0,1.0,1.0])+t*np.array([0.5,0.7,1.0])
 
+
 def main():
     # the size of the canvas 
     nx = 200
     ny = 100
-    
-    lower_left_corner = np.array([-2.0, -1.0, -1.0])
-    horizontal = np.array([4.0, 0.0, 0.0])
-    vertical = np.array([0.0, 2.0, 0.0])
-    origin = np.array([0.0, 0.0, 0.0])
+    ns = 1 # higher and slower the performance, 1 for preview
     
     hitablelist = [
         Sphere(np.array([0,0,-1]), 0.5),
@@ -115,7 +126,7 @@ def main():
         ]
     
     world = HitableList(hitablelist, len(hitablelist))
-    
+    cam = Camera()
     # create image
     img = Image.new('RGB', (nx, ny), (0,0,0))
      
@@ -123,14 +134,18 @@ def main():
     for w in xrange(img.width):
         for h in xrange(img.height):
             
-            u = float(w)/float(nx)
-            v = float(img.height - h)/float(ny)
+            col = 0
             
-            r = Ray(origin, lower_left_corner+u*horizontal+v*vertical)
+            for s in xrange(ns):
+                u = float(w+random.randint(0,100)/100.0)/float(nx)
+                v = float(img.height - h+random.randint(0,100)/100.0)/float(ny)
             
-            p = r.point_at_parameter(2.0)
-            col = color(r, world)
-                
+                r = cam.get_ray(u, v)
+            
+                p = r.point_at_parameter(2.0)
+                col += color(r, world)
+
+            col/=float(ns)    
             r = int(255.99*col[0])
             g = int(255.99*col[1])
             b = int(255.99*col[2])

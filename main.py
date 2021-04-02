@@ -18,22 +18,52 @@ class Ray(object):
         return self.A + t*self.B
 
 
+class Material(object):
+    def scatter(self, r_in, rec, attenuation):
+        pass
+
 class HitRecord(object):
     def __init__(self):
         self.t = 0 # float
         self.p = np.array([0,0,0]) # vec3
         self.normal = np.array([0,0,0]) # vec3
+        self.mat_ptr = None
         
 
 class Hitable(object):
     def hit(self, r, t_min, t_max, rec):
         pass
 
+def reflect(v, n):
+    return v - 2*np.dot(v, n)*n
+
+class Lambertian(Material):
+    def __init__(self, a):
+        self.albedo = a
+        
+    def scatter(self, r_in, rec):
+        target = rec.p + rec.normal + random_in_unit_sphere()
+        scattered = Ray(rec.p, target - rec.p)
+        attenuation = self.albedo
+        return True, scattered, attenuation
+        
+                        
+class Metal(Material):
+    def __init__(self, a):
+        self.albedo = a
+        
+    def scatter(self, r_in, rec):
+        reflected = reflect(unit_vector(r_in.direction()), rec.normal)
+        scattered = Ray(rec.p, reflected)
+        attenuation = self.albedo
+        return np.dot(scattered.direction(), rec.normal)>0, scattered, attenuation
+    
                 
 class Sphere(Hitable):
-    def __init__(self, center, r):
+    def __init__(self, center, r, m):
         self.center = center
         self.radius = r
+        self.mat_ptr = m
         
     def hit(self, r, t_min, t_max, rec):
         oc = r.origin() - self.center
@@ -47,14 +77,16 @@ class Sphere(Hitable):
                 rec.t = temp
                 rec.p = r.point_at_parameter(rec.t)
                 rec.normal = (rec.p - self.center)/self.radius
-                return True
+                rec.mat_ptr = self.mat_ptr
+                return True, rec
             temp = (-b + pow(b*b-a*c, 0.5))/a
             if (temp < t_max and temp > t_min):
                 rec.t = temp
                 rec.p = r.point_at_parameter(rec.t)
                 rec.normal = (rec.p - self.center)/self.radius
-                return True
-        return False
+                rec.mat_ptr = self.mat_ptr
+                return True, rec
+        return False, rec
 
        
 class HitableList(Hitable):
@@ -67,7 +99,8 @@ class HitableList(Hitable):
         hit_anything = False
         closest_so_far = t_max
         for i in xrange(self.list_size):
-            if self.list[i].hit(r, t_min, closest_so_far, temp_rec):
+            is_hit, temp_rec = self.list[i].hit(r, t_min, closest_so_far, temp_rec)
+            if is_hit:
                 hit_anything = True
                 closest_so_far = temp_rec.t
                 rec = temp_rec
@@ -119,19 +152,20 @@ def random_in_unit_sphere():
 
 
 MAXFLOAT = 100.0
-def ray_color(r, world, depth):
+def color(r, world, depth):
     rec = HitRecord()
-    if depth <= 0:
-        return 0
-
     is_hit, rec = world.hit(r, 0.001, MAXFLOAT, rec)  # the rec would make sense only if the is_hit is True.
-    if is_hit:
-        target = rec.p + rec.normal + random_in_unit_sphere()
-        return 0.5*ray_color(Ray(rec.p, target - rec.p), world, depth-1)
-
-    unit_direction = unit_vector(r.direction())
-    t = 0.5*(unit_direction[1]+1.0)
-    return (1.0-t)*np.array([1.0,1.0,1.0])+t*np.array([0.5,0.7,1.0])
+    if is_hit: 
+        attenuation = np.array([1,1,1])
+        is_scattered, scattered, attenuation = rec.mat_ptr.scatter(r, rec)
+        if is_scattered and depth < 50:
+            return attenuation*color(scattered, world, depth+1)
+        else:
+            return np.array([0,0,0])
+    else:
+        unit_direction = unit_vector(r.direction())
+        t = 0.5*(unit_direction[1]+1.0)
+        return (1.0-t)*np.array([1.0,1.0,1.0])+t*np.array([0.5,0.7,1.0])
 
 def white_color(pixel_color, samples_per_pixel):
     r = pixel_color[0]
@@ -150,12 +184,14 @@ def main():
     # the size of the canvas 
     nx = 200
     ny = 100
-    samples_per_pixel = 10  # higher and slower the performance, 1 for preview
+    samples_per_pixel = 2  # higher and1lower the performance, 1 for preview
     max_depth = 50
     
     hitablelist = [
-        Sphere(np.array([0,0,-1]), 0.5),
-        Sphere(np.array([0,-100.5,-1]), 100)
+        Sphere(np.array([0,0,-1]), 0.5, Lambertian(np.array([0.8,0.3,0.3]))),
+        Sphere(np.array([0,-100.5,-1]), 100, Lambertian(np.array([0.8,0.8,0.0]))),
+        Sphere(np.array([1,0,-1]), 0.5, Metal(np.array([0.8,0.6,0.2]))),
+        Sphere(np.array([-1,0,-1]), 0.5, Metal(np.array([0.8,0.8,0.8])))
         ]
     
     world = HitableList(hitablelist, len(hitablelist))
@@ -172,7 +208,7 @@ def main():
                 v = float(img.height - h+random.randint(0,100)/100.0)/(float(ny)-1)
                 r = cam.get_ray(u, v)
                 p = r.point_at_parameter(2.0)
-                pixel_color = pixel_color + ray_color(r, world, max_depth)
+                pixel_color = pixel_color + color(r, world, 0)
             r, g, b = white_color(pixel_color, samples_per_pixel)
             img.putpixel((w,h), (int(r*256),int(g*256),int(b*256)))
     

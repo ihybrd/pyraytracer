@@ -49,12 +49,13 @@ class Lambertian(Material):
         
                         
 class Metal(Material):
-    def __init__(self, a):
+    def __init__(self, a, f):
         self.albedo = a
+        self.fuzz = f if f<1 else 1
         
     def scatter(self, r_in, rec):
         reflected = reflect(unit_vector(r_in.direction()), rec.normal)
-        scattered = Ray(rec.p, reflected)
+        scattered = Ray(rec.p, reflected+self.fuzz*random_in_unit_sphere())
         attenuation = self.albedo
         return np.dot(scattered.direction(), rec.normal)>0, scattered, attenuation
     
@@ -184,14 +185,14 @@ def main():
     # the size of the canvas 
     nx = 200
     ny = 100
-    samples_per_pixel = 2  # higher and1lower the performance, 1 for preview
+    samples_per_pixel = 1  # higher and1lower the performance, 1 for preview
     max_depth = 50
     
     hitablelist = [
         Sphere(np.array([0,0,-1]), 0.5, Lambertian(np.array([0.8,0.3,0.3]))),
         Sphere(np.array([0,-100.5,-1]), 100, Lambertian(np.array([0.8,0.8,0.0]))),
-        Sphere(np.array([1,0,-1]), 0.5, Metal(np.array([0.8,0.6,0.2]))),
-        Sphere(np.array([-1,0,-1]), 0.5, Metal(np.array([0.8,0.8,0.8])))
+        Sphere(np.array([1,0,-1]), 0.5, Metal(np.array([0.8,0.6,0.2]), 1.0)),
+        Sphere(np.array([-1,0,-1]), 0.5, Metal(np.array([0.8,0.8,0.8]), .3))
         ]
     
     world = HitableList(hitablelist, len(hitablelist))

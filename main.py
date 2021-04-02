@@ -2,6 +2,11 @@ from PIL import Image
 import numpy as np
 import random
 
+
+def unit_vector(v):
+    length = pow(v[0]*v[0]+v[1]*v[1]+v[2]*v[2], 0.5)
+    return v/length
+
     
 class Ray(object):
     def __init__(self, a, b):
@@ -22,6 +27,7 @@ class Material(object):
     def scatter(self, r_in, rec, attenuation):
         pass
 
+
 class HitRecord(object):
     def __init__(self):
         self.t = 0 # float
@@ -34,8 +40,21 @@ class Hitable(object):
     def hit(self, r, t_min, t_max, rec):
         pass
 
+
 def reflect(v, n):
     return v - 2*np.dot(v, n)*n
+
+
+def refract(v, n, ni_over_nt):
+    uv = unit_vector(v)
+    dt = np.dot(uv, n)
+    discriminant = 1.0 - ni_over_nt*ni_over_nt*(1-dt*dt)
+    if (discriminant > 0):
+        refracted = ni_over_nt*(uv-n*dt)-n*pow(discriminant, 0.5)
+        return True, refracted
+    else:
+        return False, None
+
 
 class Lambertian(Material):
     def __init__(self, a):
@@ -59,7 +78,33 @@ class Metal(Material):
         attenuation = self.albedo
         return np.dot(scattered.direction(), rec.normal)>0, scattered, attenuation
     
-                
+ 
+class Dielectric(Material):
+    def __init__(self, ri):
+        self.ref_idx = ri
+        
+    def scatter(self, r_in, rec):
+        outward_normal = np.array([0,0,0])
+        reflected = reflect(r_in.direction(), rec.normal)
+        ni_over_nt = 0.0
+        attenuation = np.array([1.,1.,1.])
+        refracted = np.array([0,0,0])
+        
+        if np.dot(r_in.direction(), rec.normal)>0:
+            outward_normal = -rec.normal
+            ni_over_nt=self.ref_idx
+        else:
+            outward_normal = rec.normal
+            ni_over_nt = 1.0/self.ref_idx
+        is_refracted, refracted = refract(r_in.direction(), outward_normal, ni_over_nt)
+        if is_refracted:
+            scattered = Ray(rec.p, refracted)
+        else:
+            scattered = Ray(rec.p, reflected)
+            return False, scattered, attenuation
+        return True, scattered, attenuation
+
+                                                        
 class Sphere(Hitable):
     def __init__(self, center, r, m):
         self.center = center
@@ -117,11 +162,6 @@ class Camera (object):
         
     def get_ray(self, u, v):
         return Ray(self.origin, self.lower_left_corner+u*self.horizontal+v*self.vertical)
-    
-  
-def unit_vector(v):
-    length = pow(v[0]*v[0]+v[1]*v[1]+v[2]*v[2], 0.5)
-    return v/length
 
 
 def hit_sphere(center, radius, r):
@@ -192,7 +232,8 @@ def main():
         Sphere(np.array([0,0,-1]), 0.5, Lambertian(np.array([0.8,0.3,0.3]))),
         Sphere(np.array([0,-100.5,-1]), 100, Lambertian(np.array([0.8,0.8,0.0]))),
         Sphere(np.array([1,0,-1]), 0.5, Metal(np.array([0.8,0.6,0.2]), 1.0)),
-        Sphere(np.array([-1,0,-1]), 0.5, Metal(np.array([0.8,0.8,0.8]), .3))
+        Sphere(np.array([-1,0,-1]), 0.5, Dielectric(1.5)),
+        # Sphere(np.array([0,1,-1]), 0.5, Metal(np.array([0.8,0.8,0.8]), 0.5)),
         ]
     
     world = HitableList(hitablelist, len(hitablelist))
